@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: extension-knative-eventing
+  labels:
+    app: extension-knative-eventing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: extension-knative-eventing
+  template:
+    metadata:
+      labels:
+        app: extension-knative-eventing
+    spec:
+      containers:
+        - name: extension-knative-eventing
+          image: "ncskier/extension:latest"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: 8080
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 8080
