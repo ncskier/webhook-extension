@@ -8,10 +8,10 @@ ADD . /go/src/github.com/ncskier/webhook-extension
 # Build the outyet command inside the container.
 # (You may fetch or manage dependencies here,
 # either manually or with a tool like "godep".)
-RUN go install github.com/ncskier/webhook-extension
+RUN go install github.com/ncskier/webhook-extension/cmd/listener
 
 # Run the outyet command by default when the container starts.
-ENTRYPOINT /go/bin/webhook-extension
+ENTRYPOINT /go/bin/listener
 
 # Document that the service listens on port 8080.
 EXPOSE 8080

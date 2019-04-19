@@ -64,7 +64,9 @@ func (r Resource) createWebhook(request *restful.Request, response *restful.Resp
 	}
 	namespace := source.Namespace
 	if namespace == "" {
-		log.Printf("Error: namespace is required, but none was given")
+		err := errors.New("namespace is required, but none was given")
+		log.Printf("Error: %s", err.Error())
+		RespondError(response, err, http.StatusBadRequest)
 		return
 	}
 	log.Printf("createGitHubSource: namespace: %s, entry: %v", namespace, source)
@@ -102,7 +104,10 @@ func (r Resource) createWebhook(request *restful.Request, response *restful.Resp
 			Sink: &corev1.ObjectReference{
 				APIVersion: "serving.knative.dev/v1alpha1",
 				Kind:       "Service",
-				Name:       "tekton-dashboard-service",
+				Name:       "extension-knative-eventing-listener",
+				// APIVersion: "serving.knative.dev/v1alpha1",
+				// Kind:       "Service",
+				// Name:       "tekton-dashboard-service",
 			},
 		},
 	}
@@ -112,9 +117,9 @@ func (r Resource) createWebhook(request *restful.Request, response *restful.Resp
 		RespondError(response, err, http.StatusBadRequest)
 		return
 	}
-	// sources := r.readGitHubSource(namespace)
-	// sources[source.Name] = source
-	// r.writeGitHubSource(namespace, sources)
+	sources := r.readGitHubSource(namespace)
+	sources[source.Name] = source
+	r.writeGitHubSource(namespace, sources)
 	response.WriteHeader(http.StatusNoContent)
 }
 

@@ -1,0 +1,22 @@
+apiVersion: serving.knative.dev/v1alpha1
+kind: Service
+metadata:
+  name: extension-knative-eventing-listener
+  labels:
+    app: extension-knative-eventing-listener
+spec:
+  runLatest:
+    configuration:
+      revisionTemplate:
+        spec:
+          container:
+            image: "ncskier/extension-listener:latest"
+            imagePullPolicy: Always
+            ports:
+            - containerPort: 8080
+            livenessProbe:
+              httpGet:
+                path: /liveness
+            readinessProbe:
+              httpGet:
+                path: /readiness
