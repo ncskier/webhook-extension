@@ -17,6 +17,7 @@ import (
 type Webhook struct {
 	Name                 string `json:"name"`
 	Namespace            string `json:"namespace"`
+	ServiceAccount       string `json:"serviceaccount,omitempty"`
 	GitRepositoryURL     string `json:"gitrepositoryurl"`
 	AccessTokenRef       string `json:"accesstoken"`
 	Pipeline             string `json:"pipeline"`
@@ -80,9 +81,6 @@ func (r Resource) createWebhook(request *restful.Request, response *restful.Resp
 				APIVersion: "serving.knative.dev/v1alpha1",
 				Kind:       "Service",
 				Name:       "extension-knative-eventing-listener",
-				// APIVersion: "serving.knative.dev/v1alpha1",
-				// Kind:       "Service",
-				// Name:       "tekton-dashboard-service",
 			},
 		},
 	}
@@ -96,22 +94,6 @@ func (r Resource) createWebhook(request *restful.Request, response *restful.Resp
 	sources[source.Name] = source
 	r.writeGitHubSource(namespace, sources)
 	response.WriteHeader(http.StatusNoContent)
-}
-
-func (r Resource) getAllWebhooks(request *restful.Request, response *restful.Response) {
-
-}
-
-func (r Resource) getWebhook(request *restful.Request, response *restful.Response) {
-
-}
-
-func (r Resource) updateWebhook(request *restful.Request, response *restful.Response) {
-
-}
-
-func (r Resource) deleteWebhook(request *restful.Request, response *restful.Response) {
-
 }
 
 // retrieve retistry secret, helm secret and pipeline name for the github url
@@ -143,6 +125,16 @@ func (r Resource) getGitHubSourceInfo(gitrepourl string, namespace string) (stri
 	}
 	return "", "", ""
 
+}
+
+func (r Resource) getWebhook(name string, namespace string) Webhook {
+	webhooks := r.readGitHubSource(namespace)
+	webhook, ok := webhooks[name]
+	if !ok {
+		log.Printf("webhook not found error")
+		// return err
+	}
+	return webhook
 }
 
 func (r Resource) readGitHubSource(namespace string) map[string]Webhook {

@@ -20,3 +20,8 @@ spec:
             readinessProbe:
               httpGet:
                 path: /readiness
+            env:
+            - name: PIPELINE_RUN_NAMESPACE
+              value: demo
+            - name: DOCKER_REGISTRY_LOCATION
+              value: ncskier

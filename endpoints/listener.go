@@ -18,6 +18,7 @@ import (
 const gitServerLabel = "gitServer"
 const gitOrgLabel = "gitOrg"
 const gitRepoLabel = "gitRepo"
+const githubEventParameter = "Ce-Github-Event"
 
 // BuildInformation - information required to build a particular commit from a Git repository.
 type BuildInformation struct {
@@ -37,12 +38,11 @@ func handleWebhook(request *restful.Request, response *restful.Response) {
 func (r Resource) handleWebhook(request *restful.Request, response *restful.Response) {
 	log.Print("In HandleWebhook code with error handling for a GitHub event...")
 	buildInformation := BuildInformation{}
-	gitHubEvent := os.Getenv("EVENT_HEADER_NAME")
-	log.Printf("Github event name to look for is: %s", gitHubEvent)
-	gitHubEventType := request.HeaderParameter(gitHubEvent)
+	log.Printf("Github event name to look for is: %s", githubEventParameter)
+	gitHubEventType := request.HeaderParameter(githubEventParameter)
 
 	if len(gitHubEventType) < 1 {
-		log.Printf("found header (%s) exists but has no value! Request is: %+v", gitHubEvent, request)
+		log.Printf("found header (%s) exists but has no value! Request is: %+v", githubEventParameter, request)
 		return
 	}
 
@@ -99,6 +99,10 @@ func (r Resource) handleWebhook(request *restful.Request, response *restful.Resp
 func createPipelineRunFromWebhookData(buildInformation BuildInformation, r Resource) {
 	log.Printf("In createPipelineRunFromWebhookData, build information: %s", buildInformation)
 
+	// TODO: Use the dashboard endpoint to create the PipelineRun
+	// Track PR: https://github.com/tektoncd/dashboard/pull/33
+	// and issue: https://github.com/tektoncd/dashboard/issues/47
+
 	// These can be set either when creating the event handler/github source manually through yml or when installing the Helm chart.
 	// For the chart, PIPELINE_RUN_NAMESPACE picks up the specified namespace. If this is set it will be used.
 
@@ -107,19 +111,19 @@ func createPipelineRunFromWebhookData(buildInformation BuildInformation, r Resou
 
 	// The specified service account name is also exposed through the chart's values.yaml: defaulting to "tekton-pipelines".
 
-	pipelineRunNamespaceToUse := "default"
+	pipelineNs := os.Getenv("PIPELINE_RUN_NAMESPACE")
+	if pipelineNs == "" {
+		pipelineNs = "default"
+	}
 	saName := "default"
 
-	log.Printf("PipelineRuns will be created in the namespace %s", pipelineRunNamespaceToUse)
+	log.Printf("PipelineRuns will be created in the namespace %s", pipelineNs)
 	log.Printf("PipelineRuns will be created with the service account %s", saName)
 
 	startTime := getDateTimeAsString()
 
 	// Assumes you've already applied the yml: so the pipeline definition and its tasks must exist upfront.
 	generatedPipelineRunName := fmt.Sprintf("devops-pipeline-run-%s", startTime)
-
-	// Todo allow these to be in a different namespace.
-	pipelineNs := pipelineRunNamespaceToUse
 
 	// get information from related githubsource instance
 	registrySecret, helmSecret, pipelineTemplateName := r.getGitHubSourceInfo(buildInformation.REPOURL, pipelineNs)
@@ -173,7 +177,7 @@ func createPipelineRunFromWebhookData(buildInformation BuildInformation, r Resou
 		{Name: "image-name", Value: imageName},
 		{Name: "release-name", Value: releaseName},
 		{Name: "repository-name", Value: repositoryName},
-		{Name: "target-namespace", Value: pipelineRunNamespaceToUse}}
+		{Name: "target-namespace", Value: pipelineNs}}
 
 	if registrySecret != "" {
 		params = append(params, v1alpha1.Param{Name: "registry-secret", Value: registrySecret})
@@ -183,12 +187,12 @@ func createPipelineRunFromWebhookData(buildInformation BuildInformation, r Resou
 	}
 
 	// PipelineRun yml defines the references to the above named resources.
-	pipelineRunData, err := definePipelineRun(generatedPipelineRunName, pipelineRunNamespaceToUse, saName, buildInformation.REPOURL,
+	pipelineRunData, err := definePipelineRun(generatedPipelineRunName, pipelineNs, saName, buildInformation.REPOURL,
 		pipeline, v1alpha1.PipelineTriggerTypeManual, resources, params)
 
-	log.Printf("Creating a new PipelineRun named %s in the namespace %s using the service account %s", generatedPipelineRunName, pipelineRunNamespaceToUse, saName)
+	log.Printf("Creating a new PipelineRun named %s in the namespace %s using the service account %s", generatedPipelineRunName, pipelineNs, saName)
 
-	pipelineRun, err := r.TektonClient.TektonV1alpha1().PipelineRuns(pipelineRunNamespaceToUse).Create(pipelineRunData)
+	pipelineRun, err := r.TektonClient.TektonV1alpha1().PipelineRuns(pipelineNs).Create(pipelineRunData)
 	if err != nil {
 		log.Printf("error creating the PipelineRun: %s", err)
 		return
