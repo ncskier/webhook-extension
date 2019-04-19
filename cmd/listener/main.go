@@ -9,11 +9,17 @@ import (
 )
 
 func main() {
+	// Create/setup resource
+	r, err := endpoints.NewResource()
+	if err != nil {
+		log.Fatalf("Fatal error creating resource: %s", err.Error())
+	}
+
 	// Set up routes
 	wsContainer := restful.NewContainer()
-
+	// Add listener
+	wsContainer.Add(endpoints.ListenerWebService(r))
 	// Add liveness/readiness
-	wsContainer.Add(endpoints.ListenerWebService())
 	wsContainer.Add(endpoints.LivenessWebService())
 	wsContainer.Add(endpoints.ReadinessWebService())
 

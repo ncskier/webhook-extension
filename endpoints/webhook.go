@@ -9,17 +9,9 @@ import (
 
 	restful "github.com/emicklei/go-restful"
 	eventapi "github.com/knative/eventing-sources/pkg/apis/sources/v1alpha1"
-	eventsrcclient "github.com/knative/eventing-sources/pkg/client/clientset/versioned/typed/sources/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sclientset "k8s.io/client-go/kubernetes"
 )
-
-// Resource stores all types here that are reused throughout files
-type Resource struct {
-	K8sClient      k8sclientset.Interface
-	EventSrcClient eventsrcclient.SourcesV1alpha1Interface
-}
 
 // Webhook stores the webhook information
 type Webhook struct {
@@ -35,23 +27,6 @@ type Webhook struct {
 
 // ConfigMapName ... the name of the ConfigMap to create
 const ConfigMapName = "githubsource"
-
-// RegisterTo registers the webhook routes to the container
-func (r Resource) RegisterTo(container *restful.Container) {
-	ws := new(restful.WebService)
-	ws.
-		Path("/webhook").
-		Consumes(restful.MIME_JSON, restful.MIME_JSON).
-		Produces(restful.MIME_JSON, restful.MIME_JSON)
-
-	ws.Route(ws.POST("/").To(r.createWebhook))
-	// ws.Route(ws.GET("/").To(r.getAllWebhooks))
-	// ws.Route(ws.GET("/{webhook-id}").To(r.getWebhook))
-	// ws.Route(ws.PUT("/{webhook-id}").To(r.updateWebhook))
-	// ws.Route(ws.DELETE("/{webhook-id}").To(r.deleteWebhook))
-
-	container.Add(ws)
-}
 
 func (r Resource) createWebhook(request *restful.Request, response *restful.Response) {
 	log.Printf("create webhook %v", request)
@@ -111,7 +86,7 @@ func (r Resource) createWebhook(request *restful.Request, response *restful.Resp
 			},
 		},
 	}
-	_, err := r.EventSrcClient.GitHubSources(namespace).Create(&entry)
+	_, err := r.EventSrcClient.SourcesV1alpha1().GitHubSources(namespace).Create(&entry)
 	if err != nil {
 		log.Printf("error createGitHubSource: %+v", err)
 		RespondError(response, err, http.StatusBadRequest)
@@ -136,6 +111,37 @@ func (r Resource) updateWebhook(request *restful.Request, response *restful.Resp
 }
 
 func (r Resource) deleteWebhook(request *restful.Request, response *restful.Response) {
+
+}
+
+// retrieve retistry secret, helm secret and pipeline name for the github url
+func (r Resource) getGitHubSourceInfo(gitrepourl string, namespace string) (string, string, string) {
+	log.Printf("getgitHubSource: getSecrets: namespace: %s, repositoryurl: %v", namespace, gitrepourl)
+
+	crds, err := r.EventSrcClient.SourcesV1alpha1().GitHubSources(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		log.Printf("got an error trying to get githubsources: %s", err)
+		return "", "", ""
+	}
+	sources := r.readGitHubSource(namespace)
+	newsources := make(map[string]Webhook)
+	for _, crd := range crds.Items {
+		log.Printf("GitHubSource: %s", crd.ObjectMeta.Name)
+		source, ok := sources[crd.ObjectMeta.Name]
+		if !ok {
+			source = Webhook{Name: crd.ObjectMeta.Name}
+		}
+		source.GitRepositoryURL = strings.TrimSuffix(crd.Spec.GitHubAPIURL, "api/v3/") + crd.Spec.OwnerAndRepository
+		source.AccessTokenRef = crd.Spec.AccessToken.SecretKeyRef.LocalObjectReference.Name
+		newsources[crd.ObjectMeta.Name] = source
+	}
+	r.writeGitHubSource(namespace, newsources)
+	for _, source := range newsources {
+		if source.GitRepositoryURL == gitrepourl {
+			return source.RegistrySecret, source.HelmSecret, source.Pipeline
+		}
+	}
+	return "", "", ""
 
 }
 
@@ -217,4 +223,21 @@ func RespondErrorAndMessage(response *restful.Response, err error, message strin
 	log.Printf("Message is %x\n", message)
 	response.AddHeader("Content-Type", "text/plain")
 	response.WriteErrorString(statusCode, message)
+}
+
+// WebhookWebService returns the webhook webservice
+func WebhookWebService(r Resource) *restful.WebService {
+	ws := new(restful.WebService)
+	ws.
+		Path("/webhook").
+		Consumes(restful.MIME_JSON, restful.MIME_JSON).
+		Produces(restful.MIME_JSON, restful.MIME_JSON)
+
+	ws.Route(ws.POST("/").To(r.createWebhook))
+	// ws.Route(ws.GET("/").To(r.getAllWebhooks))
+	// ws.Route(ws.GET("/{webhook-id}").To(r.getWebhook))
+	// ws.Route(ws.PUT("/{webhook-id}").To(r.updateWebhook))
+	// ws.Route(ws.DELETE("/{webhook-id}").To(r.deleteWebhook))
+
+	return ws
 }

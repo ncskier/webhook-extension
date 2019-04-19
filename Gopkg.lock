@@ -141,10 +141,11 @@
   version = "v1.1.6"
 
 [[projects]]
-  digest = "1:0231e0f16aa69b20ccd76c0655955549227535d72459f0b9a568db1f74b3afa8"
+  digest = "1:c4c38b9de69c1e5319f371b8fc5436bb182d708b731915c4396cf888bd94da86"
   name = "github.com/knative/eventing-sources"
   packages = [
     "pkg/apis/sources/v1alpha1",
+    "pkg/client/clientset/versioned",
     "pkg/client/clientset/versioned/scheme",
     "pkg/client/clientset/versioned/typed/sources/v1alpha1",
   ]
@@ -204,6 +205,23 @@
   pruneopts = "UT"
   revision = "5f041e8faa004a95c88a202771f4cc3e991971e6"
   version = "v2.0.1"
+
+[[projects]]
+  digest = "1:48ca5645a292ff528f1cbc479bacd5816384f8a0a0c4fa429cbf25348c2f01b1"
+  name = "github.com/tektoncd/pipeline"
+  packages = [
+    "pkg/apis/pipeline",
+    "pkg/apis/pipeline/v1alpha1",
+    "pkg/client/clientset/versioned",
+    "pkg/client/clientset/versioned/scheme",
+    "pkg/client/clientset/versioned/typed/pipeline/v1alpha1",
+    "pkg/list",
+    "pkg/names",
+    "pkg/templating",
+  ]
+  pruneopts = "UT"
+  revision = "7c43fbae2816c7271bed51098d0595cd6174c7a3"
+  version = "0.2.0"
 
 [[projects]]
   branch = "master"
@@ -298,6 +316,17 @@
   version = "v1.5.0"
 
 [[projects]]
+  digest = "1:39f43a9ea4af920abf322d1770c5fbf337286cb174a25827b22e1da72dcfdb5c"
+  name = "gopkg.in/go-playground/webhooks.v3"
+  packages = [
+    ".",
+    "github",
+  ]
+  pruneopts = "UT"
+  revision = "8ffb2ffc32b7af2c7e940944eccba4dcd66c692a"
+  version = "v3.13.0"
+
+[[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
   name = "gopkg.in/inf.v0"
   packages = ["."]
@@ -354,7 +383,7 @@
   version = "kubernetes-1.12.6"
 
 [[projects]]
-  digest = "1:bdc492eb88fded25128f6dc1e49ebe61102fbc1566f382c269a8bdcdbf056cd2"
+  digest = "1:1322546febefba0ffaa8bb8bd82ae3b7afa8a34fd078f8f77788e87752ec4b77"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -390,6 +419,7 @@
     "pkg/util/json",
     "pkg/util/naming",
     "pkg/util/net",
+    "pkg/util/rand",
     "pkg/util/runtime",
     "pkg/util/sets",
     "pkg/util/validation",
@@ -481,7 +511,10 @@
   input-imports = [
     "github.com/emicklei/go-restful",
     "github.com/knative/eventing-sources/pkg/apis/sources/v1alpha1",
-    "github.com/knative/eventing-sources/pkg/client/clientset/versioned/typed/sources/v1alpha1",
+    "github.com/knative/eventing-sources/pkg/client/clientset/versioned",
+    "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1alpha1",
+    "github.com/tektoncd/pipeline/pkg/client/clientset/versioned",
+    "gopkg.in/go-playground/webhooks.v3/github",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/client-go/kubernetes",
