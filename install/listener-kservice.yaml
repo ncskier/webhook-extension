@@ -21,9 +21,9 @@ spec:
               httpGet:
                 path: /readiness
             env:
+            - name: PORT
+              value: "8080"
             - name: PIPELINE_RUN_NAMESPACE
               value: demo
             - name: DOCKER_REGISTRY_LOCATION
               value: ncskier
-            - name: PIPELINE_RUN_SERVICE_ACCOUNT
-              value: default

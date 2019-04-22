@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	restful "github.com/emicklei/go-restful"
 	"github.com/ncskier/webhook-extension/endpoints"
@@ -25,6 +26,12 @@ func main() {
 
 	// Serve
 	log.Print("Creating server and entering wait loop")
-	server := &http.Server{Addr: ":8080", Handler: wsContainer}
+	port := ":8080"
+	portnum := os.Getenv("PORT")
+	if portnum != "" {
+		port = ":" + portnum
+		log.Printf("Port number from config: %s", portnum)
+	}
+	server := &http.Server{Addr: port, Handler: wsContainer}
 	log.Fatal(server.ListenAndServe())
 }

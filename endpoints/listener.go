@@ -23,11 +23,12 @@ const githubEventParameter = "Ce-Github-Event"
 
 // BuildInformation - information required to build a particular commit from a Git repository.
 type BuildInformation struct {
-	REPOURL   string
-	SHORTID   string
-	COMMITID  string
-	REPONAME  string
-	TIMESTAMP string
+	REPOURL        string
+	SHORTID        string
+	COMMITID       string
+	REPONAME       string
+	TIMESTAMP      string
+	SERVICEACCOUNT string
 }
 
 func handleWebhook(request *restful.Request, response *restful.Response) {
@@ -118,25 +119,30 @@ func createPipelineRunFromWebhookData(buildInformation BuildInformation, r Resou
 	if pipelineNs == "" {
 		pipelineNs = "default"
 	}
-	saName := os.Getenv("PIPELINE_RUN_SERVICE_ACCOUNT")
+
+	log.Printf("PipelineRuns will be created in the namespace %s", pipelineNs)
+
+	// get information from related githubsource instance
+	webhook, err := r.getGitHubWebhook(buildInformation.REPOURL, pipelineNs)
+	if err != nil {
+		log.Printf("Error getting github webhook: %s", err.Error())
+		return
+	}
+	registrySecret := webhook.RegistrySecret
+	helmSecret := webhook.HelmSecret
+	pipelineTemplateName := webhook.Pipeline
+	saName := webhook.ServiceAccount
 	if saName == "" {
 		saName = "default"
 	}
 
-	log.Printf("PipelineRuns will be created in the namespace %s", pipelineNs)
-	log.Printf("PipelineRuns will be created with the service account %s", saName)
-
-	startTime := getDateTimeAsString()
-
 	// Assumes you've already applied the yml: so the pipeline definition and its tasks must exist upfront.
-	generatedPipelineRunName := fmt.Sprintf("devops-pipeline-run-%s", startTime)
-
-	// get information from related githubsource instance
-	registrySecret, helmSecret, pipelineTemplateName := r.getGitHubSourceInfo(buildInformation.REPOURL, pipelineNs)
+	startTime := getDateTimeAsString()
+	generatedPipelineRunName := fmt.Sprintf("%s-%s", webhook.Name, startTime)
 
 	// Unique names are required so timestamp them.
-	imageResourceName := fmt.Sprintf("docker-image-%s", startTime)
-	gitResourceName := fmt.Sprintf("git-source-%s", startTime)
+	imageResourceName := fmt.Sprintf("%s-docker-image-%s", webhook.Name, startTime)
+	gitResourceName := fmt.Sprintf("%s-git-source-%s", webhook.Name, startTime)
 
 	pipeline, err := r.getPipelineImpl(pipelineTemplateName, pipelineNs)
 	if err != nil {

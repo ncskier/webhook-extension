@@ -28,3 +28,6 @@ spec:
             httpGet:
               path: /readiness
               port: 8080
+          env:
+          - name: PORT
+            value: "8080"

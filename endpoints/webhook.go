@@ -3,6 +3,7 @@ package endpoints
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -27,45 +28,45 @@ type Webhook struct {
 }
 
 // ConfigMapName ... the name of the ConfigMap to create
-const ConfigMapName = "githubsource"
+const ConfigMapName = "githubwebhook"
 
 func (r Resource) createWebhook(request *restful.Request, response *restful.Response) {
 	log.Printf("create webhook %v", request)
 
-	source := Webhook{}
-	if err := request.ReadEntity(&source); err != nil {
-		log.Printf("Got an error trying to create a githubsource: %s", err)
+	webhook := Webhook{}
+	if err := request.ReadEntity(&webhook); err != nil {
+		log.Printf("Got an error trying to read request for webhook: %s", err)
 		RespondError(response, err, http.StatusBadRequest)
 		return
 	}
-	namespace := source.Namespace
+	namespace := webhook.Namespace
 	if namespace == "" {
 		err := errors.New("namespace is required, but none was given")
 		log.Printf("Error: %s", err.Error())
 		RespondError(response, err, http.StatusBadRequest)
 		return
 	}
-	log.Printf("createGitHubSource: namespace: %s, entry: %v", namespace, source)
-	pieces := strings.Split(source.GitRepositoryURL, "/")
+	log.Printf("createGitHubSource: namespace: %s, entry: %v", namespace, webhook)
+	pieces := strings.Split(webhook.GitRepositoryURL, "/")
 	if len(pieces) < 4 {
-		log.Printf("error createGitHubSource: GitRepositoryURL format: %+v", source.GitRepositoryURL)
+		log.Printf("error createGitHubSource: GitRepositoryURL format: %+v", webhook.GitRepositoryURL)
 		RespondError(response, errors.New("GitRepositoryURL format error"), http.StatusBadRequest)
 		return
 	}
 	log.Printf("createGitHubSource: URL: %s, Owner-repo: %s",
-		strings.TrimSuffix(source.GitRepositoryURL, pieces[len(pieces)-2]+"/"+pieces[len(pieces)-1]),
+		strings.TrimSuffix(webhook.GitRepositoryURL, pieces[len(pieces)-2]+"/"+pieces[len(pieces)-1]),
 		pieces[len(pieces)-2]+"/"+strings.TrimSuffix(pieces[len(pieces)-1], ".git"))
 	entry := eventapi.GitHubSource{
-		ObjectMeta: metav1.ObjectMeta{Name: source.Name},
+		ObjectMeta: metav1.ObjectMeta{Name: webhook.Name},
 		Spec: eventapi.GitHubSourceSpec{
 			OwnerAndRepository: pieces[len(pieces)-2] + "/" + strings.TrimSuffix(pieces[len(pieces)-1], ".git"),
 			EventTypes:         []string{"push", "pull_request"},
-			GitHubAPIURL:       strings.TrimSuffix(source.GitRepositoryURL, pieces[len(pieces)-2]+"/"+pieces[len(pieces)-1]) + "api/v3/",
+			GitHubAPIURL:       strings.TrimSuffix(webhook.GitRepositoryURL, pieces[len(pieces)-2]+"/"+pieces[len(pieces)-1]) + "api/v3/",
 			AccessToken: eventapi.SecretValueFromSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					Key: "accessToken",
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: source.AccessTokenRef,
+						Name: webhook.AccessTokenRef,
 					},
 				},
 			},
@@ -73,7 +74,7 @@ func (r Resource) createWebhook(request *restful.Request, response *restful.Resp
 				SecretKeyRef: &corev1.SecretKeySelector{
 					Key: "secretToken",
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: source.AccessTokenRef,
+						Name: webhook.AccessTokenRef,
 					},
 				},
 			},
@@ -90,23 +91,24 @@ func (r Resource) createWebhook(request *restful.Request, response *restful.Resp
 		RespondError(response, err, http.StatusBadRequest)
 		return
 	}
-	sources := r.readGitHubSource(namespace)
-	sources[source.Name] = source
-	r.writeGitHubSource(namespace, sources)
+	webhooks := r.readGitHubWebhook(namespace)
+	webhooks[webhook.Name] = webhook
+	r.writeGitHubWebhook(namespace, webhooks)
 	response.WriteHeader(http.StatusNoContent)
 }
 
 // retrieve retistry secret, helm secret and pipeline name for the github url
-func (r Resource) getGitHubSourceInfo(gitrepourl string, namespace string) (string, string, string) {
+func (r Resource) getGitHubWebhook(gitrepourl string, namespace string) (Webhook, error) {
 	log.Printf("getgitHubSource: getSecrets: namespace: %s, repositoryurl: %v", namespace, gitrepourl)
 
 	crds, err := r.EventSrcClient.SourcesV1alpha1().GitHubSources(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		log.Printf("got an error trying to get githubsources: %s", err)
-		return "", "", ""
+		return Webhook{}, err
 	}
-	sources := r.readGitHubSource(namespace)
+	sources := r.readGitHubWebhook(namespace)
 	newsources := make(map[string]Webhook)
+	// Create a new crd if it does not exist
 	for _, crd := range crds.Items {
 		log.Printf("GitHubSource: %s", crd.ObjectMeta.Name)
 		source, ok := sources[crd.ObjectMeta.Name]
@@ -117,27 +119,26 @@ func (r Resource) getGitHubSourceInfo(gitrepourl string, namespace string) (stri
 		source.AccessTokenRef = crd.Spec.AccessToken.SecretKeyRef.LocalObjectReference.Name
 		newsources[crd.ObjectMeta.Name] = source
 	}
-	r.writeGitHubSource(namespace, newsources)
+	r.writeGitHubWebhook(namespace, newsources)
 	for _, source := range newsources {
 		if source.GitRepositoryURL == gitrepourl {
-			return source.RegistrySecret, source.HelmSecret, source.Pipeline
+			return source, nil
 		}
 	}
-	return "", "", ""
-
+	return Webhook{}, fmt.Errorf("could not find webhook with GitRepositoryURL: %s", gitrepourl)
 }
 
-func (r Resource) getWebhook(name string, namespace string) Webhook {
-	webhooks := r.readGitHubSource(namespace)
-	webhook, ok := webhooks[name]
-	if !ok {
-		log.Printf("webhook not found error")
-		// return err
-	}
-	return webhook
-}
+// func (r Resource) getWebhook(name string, namespace string) Webhook {
+// 	webhooks := r.readGitHubWebhook(namespace)
+// 	webhook, ok := webhooks[name]
+// 	if !ok {
+// 		log.Printf("webhook not found error")
+// 		// return err
+// 	}
+// 	return webhook
+// }
 
-func (r Resource) readGitHubSource(namespace string) map[string]Webhook {
+func (r Resource) readGitHubWebhook(namespace string) map[string]Webhook {
 	log.Printf("readGitHubSource")
 	configMapClient := r.K8sClient.CoreV1().ConfigMaps(namespace)
 	configMap, err := configMapClient.Get(ConfigMapName, metav1.GetOptions{})
@@ -160,7 +161,7 @@ func (r Resource) readGitHubSource(namespace string) map[string]Webhook {
 	return result
 }
 
-func (r Resource) writeGitHubSource(namespace string, source map[string]Webhook) {
+func (r Resource) writeGitHubWebhook(namespace string, source map[string]Webhook) {
 	log.Printf("writeGitHubSource: nameSpace: %s, %+v", namespace, source)
 	configMapClient := r.K8sClient.CoreV1().ConfigMaps(namespace)
 	configMap, err := configMapClient.Get(ConfigMapName, metav1.GetOptions{})
