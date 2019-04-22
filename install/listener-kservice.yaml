@@ -25,3 +25,5 @@ spec:
               value: demo
             - name: DOCKER_REGISTRY_LOCATION
               value: ncskier
+            - name: PIPELINE_RUN_SERVICE_ACCOUNT
+              value: default

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -52,7 +53,9 @@ func (r Resource) handleWebhook(request *restful.Request, response *restful.Resp
 
 	timestamp := getDateTimeAsString()
 
-	if gitHubEventTypeString == "push" {
+	if gitHubEventTypeString == "ping" {
+		response.WriteHeader(http.StatusNoContent)
+	} else if gitHubEventTypeString == "push" {
 		log.Print("Handling a push event...")
 
 		webhookData := gh.PushPayload{}
@@ -115,7 +118,10 @@ func createPipelineRunFromWebhookData(buildInformation BuildInformation, r Resou
 	if pipelineNs == "" {
 		pipelineNs = "default"
 	}
-	saName := "default"
+	saName := os.Getenv("PIPELINE_RUN_SERVICE_ACCOUNT")
+	if saName == "" {
+		saName = "default"
+	}
 
 	log.Printf("PipelineRuns will be created in the namespace %s", pipelineNs)
 	log.Printf("PipelineRuns will be created with the service account %s", saName)
